@@ -94,6 +94,42 @@ func TestMoveRandomFiles_CreatesDstIfAbsent(t *testing.T) {
 	}
 }
 
+// TestMoveFile_CopyFallbackNoError is a regression test for the bug where
+// moveFile always returned an error on the copy-then-delete fallback path
+// because fmt.Errorf wrapped os.Remove's nil return value unconditionally.
+// It exercises moveFile directly and verifies that a successful move returns
+// no error.
+func TestMoveFile_CopyFallbackNoError(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "source.txt")
+	if err := os.WriteFile(src, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(dir, "sub", "dest.txt")
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := moveFile(src, dst); err != nil {
+		t.Fatalf("moveFile returned unexpected error: %v", err)
+	}
+
+	// Source must be gone.
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Error("source file still exists after move")
+	}
+
+	// Destination must have the correct content.
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("cannot read destination file: %v", err)
+	}
+	if string(got) != "content" {
+		t.Errorf("content mismatch: got %q", got)
+	}
+}
+
 func TestMoveRandomFiles_FileContentsPreserved(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()

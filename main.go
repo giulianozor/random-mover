@@ -102,5 +102,8 @@ func moveFile(src, dst string) error {
 		return fmt.Errorf("write %q: %w", dst, err)
 	}
 
-	return fmt.Errorf("remove source %q after copy: %w", src, os.Remove(src))
+	if err := os.Remove(src); err != nil {
+		return fmt.Errorf("remove source %q after copy: %w", src, err)
+	}
+	return nil
 }
