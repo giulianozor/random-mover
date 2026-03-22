@@ -14,8 +14,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	maxFiles, err := strconv.Atoi(os.Args[1])
-	if err != nil || maxFiles <= 0 {
+	numFiles, err := strconv.Atoi(os.Args[1])
+	if err != nil || numFiles <= 0 {
 		fmt.Fprintf(os.Stderr, "Error: <num_files> must be a positive integer\n")
 		os.Exit(1)
 	}
@@ -23,21 +23,25 @@ func main() {
 	srcPath := os.Args[2]
 	dstPath := os.Args[3]
 
-	moved, err := MoveRandomFiles(maxFiles, srcPath, dstPath)
+	moved, err := MoveRandomFiles(numFiles, srcPath, dstPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Moved %d file(s) from %q to %q\n", moved, srcPath, dstPath)
+	fmt.Printf("Moved %d file(s) from %q to %q:\n", len(moved), srcPath, dstPath)
+	for _, name := range moved {
+		fmt.Printf("  %s\n", name)
+	}
 }
 
-// MoveRandomFiles moves a random number (between 1 and maxFiles) of files
-// from srcPath to dstPath and returns the number of files actually moved.
-func MoveRandomFiles(maxFiles int, srcPath, dstPath string) (int, error) {
+// MoveRandomFiles moves exactly numFiles randomly selected files from srcPath
+// to dstPath and returns the list of moved filenames. It returns an error if
+// the source directory contains fewer than numFiles files.
+func MoveRandomFiles(numFiles int, srcPath, dstPath string) ([]string, error) {
 	entries, err := os.ReadDir(srcPath)
 	if err != nil {
-		return 0, fmt.Errorf("cannot read source directory %q: %w", srcPath, err)
+		return nil, fmt.Errorf("cannot read source directory %q: %w", srcPath, err)
 	}
 
 	var files []string
@@ -48,36 +52,30 @@ func MoveRandomFiles(maxFiles int, srcPath, dstPath string) (int, error) {
 	}
 
 	if len(files) == 0 {
-		return 0, fmt.Errorf("no files found in source directory %q", srcPath)
+		return nil, fmt.Errorf("no files found in source directory %q", srcPath)
+	}
+
+	if numFiles > len(files) {
+		return nil, fmt.Errorf("requested %d files but only %d available in %q", numFiles, len(files), srcPath)
 	}
 
 	if err := os.MkdirAll(dstPath, 0o755); err != nil {
-		return 0, fmt.Errorf("cannot create destination directory %q: %w", dstPath, err)
+		return nil, fmt.Errorf("cannot create destination directory %q: %w", dstPath, err)
 	}
 
-	limit := maxFiles
-	if limit > len(files) {
-		limit = len(files)
-	}
-
-	// Pick a random count between 1 and limit (inclusive).
-	// Since Go 1.20 the global math/rand source is automatically seeded, so no
-	// explicit seeding is required.
-	count := rand.Intn(limit) + 1
-
-	// Shuffle and take the first `count` files.
+	// Shuffle and take exactly numFiles files.
 	rand.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
-	selected := files[:count]
+	selected := files[:numFiles]
 
 	for _, name := range selected {
 		src := filepath.Join(srcPath, name)
 		dst := filepath.Join(dstPath, name)
 		if err := moveFile(src, dst); err != nil {
-			return 0, fmt.Errorf("failed to move %q: %w", name, err)
+			return nil, fmt.Errorf("failed to move %q: %w", name, err)
 		}
 	}
 
-	return count, nil
+	return selected, nil
 }
 
 // moveFile moves a file from src to dst.

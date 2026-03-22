@@ -16,7 +16,7 @@ func createTempFiles(t *testing.T, dir string, names []string) {
 	}
 }
 
-func TestMoveRandomFiles_MovesAtLeastOne(t *testing.T) {
+func TestMoveRandomFiles_MovesExactCount(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()
 
@@ -27,19 +27,19 @@ func TestMoveRandomFiles_MovesAtLeastOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if moved < 1 || moved > 3 {
-		t.Errorf("expected 1..3 files moved, got %d", moved)
+	if len(moved) != 3 {
+		t.Errorf("expected exactly 3 files moved, got %d", len(moved))
 	}
 
 	// Verify files actually exist in dst and are gone from src.
 	srcEntries, _ := os.ReadDir(src)
 	dstEntries, _ := os.ReadDir(dst)
 
-	if len(dstEntries) != moved {
-		t.Errorf("expected %d files in dst, got %d", moved, len(dstEntries))
+	if len(dstEntries) != len(moved) {
+		t.Errorf("expected %d files in dst, got %d", len(moved), len(dstEntries))
 	}
-	if len(srcEntries)+moved != len(names) {
-		t.Errorf("src+dst file count mismatch: src=%d moved=%d total=%d", len(srcEntries), moved, len(names))
+	if len(srcEntries)+len(moved) != len(names) {
+		t.Errorf("src+dst file count mismatch: src=%d moved=%d total=%d", len(srcEntries), len(moved), len(names))
 	}
 }
 
@@ -50,12 +50,9 @@ func TestMoveRandomFiles_MaxFilesGreaterThanAvailable(t *testing.T) {
 	names := []string{"x.txt", "y.txt"}
 	createTempFiles(t, src, names)
 
-	moved, err := MoveRandomFiles(100, src, dst)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if moved < 1 || moved > 2 {
-		t.Errorf("expected 1 or 2 files moved, got %d", moved)
+	_, err := MoveRandomFiles(100, src, dst)
+	if err == nil {
+		t.Error("expected error when requesting more files than available, got nil")
 	}
 }
 
@@ -86,8 +83,8 @@ func TestMoveRandomFiles_CreatesDstIfAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if moved != 1 {
-		t.Errorf("expected 1 file moved, got %d", moved)
+	if len(moved) != 1 {
+		t.Errorf("expected 1 file moved, got %d", len(moved))
 	}
 	if _, err := os.Stat(filepath.Join(dst, "file.txt")); os.IsNotExist(err) {
 		t.Error("expected file.txt in newly created dst dir")
@@ -143,8 +140,8 @@ func TestMoveRandomFiles_FileContentsPreserved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if moved != 1 {
-		t.Errorf("expected 1 file moved, got %d", moved)
+	if len(moved) != 1 {
+		t.Errorf("expected 1 file moved, got %d", len(moved))
 	}
 
 	got, err := os.ReadFile(filepath.Join(dst, "test.txt"))
